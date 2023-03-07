@@ -1,0 +1,9 @@
+[package]
+name = "image-to-braille"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.69"
+crossterm = "0.26.1"
+image = "0.24.5"
