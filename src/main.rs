@@ -11,6 +11,8 @@ fn main() -> anyhow::Result<()> {
         image = imageops::resize(&image, new_width, new_height, FILTER).into();
     }
 
+    let image = imageops::grayscale(&image);
+
     let mut stdout = io::stdout().lock();
 
     terminal::enable_raw_mode().context("failed to enter raw mode")?;
@@ -24,12 +26,12 @@ fn main() -> anyhow::Result<()> {
 
     let mut width = 80 * 2;
     let mut height = 48 * 4;
-    let mut threshold = 80_u8;
     loop {
         stdout.queue(terminal::Clear(terminal::ClearType::All))?;
         stdout.queue(cursor::MoveTo(0, 0))?;
 
-        let new_image = imageops::resize(&image, width, height, FILTER);
+        let mut new_image = imageops::resize(&image, width, height, FILTER);
+        imageops::dither(&mut new_image, &BiLevel);
         let rows = height / 4;
         let cols = width / 2;
         let mut row_bytes = vec![0; braille::Pattern::UTF8_LEN * (cols as usize) + 2];
@@ -40,23 +42,18 @@ fn main() -> anyhow::Result<()> {
                 let mut pattern = braille::Pattern::EMPTY;
                 for x in 0..2 {
                     for y in 0..4 {
-                        if new_image.get_pixel(col * 2 + x, row * 4 + y).to_luma().0[0] > threshold
-                        {
-                            pattern = pattern.with(x, y);
-                        }
+                        let pixel = *new_image.get_pixel(col * 2 + x, row * 4 + y);
+                        pattern.set(x, y, pixel.0[0] != 0);
                     }
                 }
-                pattern.encode_utf8(
-                    (&mut row_bytes[col as usize * braille::Pattern::UTF8_LEN..]
-                        [..braille::Pattern::UTF8_LEN])
-                        .try_into()
-                        .unwrap(),
-                );
+                let slice = &mut row_bytes[col as usize * braille::Pattern::UTF8_LEN..]
+                    [..braille::Pattern::UTF8_LEN];
+                pattern.encode_utf8(slice.try_into().unwrap());
             }
             stdout.write_all(&row_bytes)?;
         }
 
-        writeln!(stdout, "hi :3      (threshold = {threshold})\r")?;
+        writeln!(stdout, "hi :3      ({width}x{height})\r")?;
 
         loop {
             let Event::Key(e) = event::read()? else { continue };
@@ -69,8 +66,6 @@ fn main() -> anyhow::Result<()> {
                 }
                 event::KeyCode::Left => width = (width - 4).max(4),
                 event::KeyCode::Right => width += 4,
-                event::KeyCode::Char('+') => threshold = threshold.saturating_add(1),
-                event::KeyCode::Char('-') => threshold = threshold.saturating_sub(1),
                 event::KeyCode::Esc => return Ok(()),
                 _ => continue,
             }
@@ -118,7 +113,7 @@ use crossterm::terminal;
 use crossterm::ExecutableCommand as _;
 use crossterm::QueueableCommand as _;
 use image::imageops;
-use image::Pixel;
+use image::imageops::BiLevel;
 use std::env;
 use std::io;
 use std::io::Write;

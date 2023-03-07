@@ -8,6 +8,4 @@ cargo run /path/to/image.png
 
 Controls:
 - Arrow keys: Resize image
-- `+`: Increase threshold
-- `-`: Decrease threshold
 - Escape: exit

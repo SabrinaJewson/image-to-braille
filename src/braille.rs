@@ -6,16 +6,12 @@ impl Pattern {
 
     pub const UTF8_LEN: usize = 3;
 
-    pub const fn from_offset(offset: u8) -> Self {
-        Self(offset)
-    }
-
     pub const fn offset(self) -> u8 {
         self.0
     }
 
-    pub const fn with(self, x: u32, y: u32) -> Self {
-        Self::from_offset(self.offset() | mask(x, y))
+    pub fn set(&mut self, x: u32, y: u32, on: bool) {
+        self.0 |= (on as u8).wrapping_shl(offset(x, y));
     }
 
     pub const fn as_char(self) -> char {
@@ -30,8 +26,8 @@ impl Pattern {
     }
 }
 
-const fn mask(x: u32, y: u32) -> u8 {
-    0b1_u8.wrapping_shl(0b0111_0101_0100_0011_0110_0010_0001_0000_u32 >> (16 * x + 4 * y))
+const fn offset(x: u32, y: u32) -> u32 {
+    0b0111_0101_0100_0011_0110_0010_0001_0000_u32 >> (16 * x + 4 * y)
 }
 
 impl Display for Pattern {
@@ -41,9 +37,9 @@ impl Display for Pattern {
 }
 
 #[test]
-fn mask_equiv() {
-    fn mask_def(x: u32, y: u32) -> u8 {
-        0b1 << match (x, y) {
+fn offset_equiv() {
+    fn offset_def(x: u32, y: u32) -> u32 {
+        match (x, y) {
             (0, 0) => 0,
             (0, 1) => 1,
             (0, 2) => 2,
@@ -58,7 +54,7 @@ fn mask_equiv() {
     for x in 0..2 {
         for y in 0..4 {
             println!("Testing mask({x}, {y})");
-            assert_eq!(mask(x, y), mask_def(x, y));
+            assert_eq!(offset(x, y), offset_def(x, y));
         }
     }
 }
@@ -68,7 +64,7 @@ fn works() {
     let mut pattern = Pattern::EMPTY;
     assert_eq!(pattern.as_char(), '⠀');
     let mut step = |x, y| {
-        pattern = pattern.with(x, y);
+        pattern.set(x, y, true);
         pattern.as_char()
     };
     assert_eq!(step(1, 0), '⠈');
@@ -81,12 +77,15 @@ fn works() {
 #[test]
 fn to_str_equiv() {
     for offset in 0..=255_u8 {
-        let pattern = Pattern::from_offset(offset);
-        assert_eq!(*pattern.encode_utf8(&mut [0; 3]), pattern.as_char().to_string());
+        let pattern = Pattern(offset);
+        assert_eq!(
+            *pattern.encode_utf8(&mut [0; 3]),
+            pattern.as_char().to_string()
+        );
     }
 }
 
-use std::fmt::Display;
 use std::fmt;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str;
