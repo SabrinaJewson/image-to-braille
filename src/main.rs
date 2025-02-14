@@ -26,11 +26,13 @@ fn main() -> anyhow::Result<()> {
 
     let mut width = 80 * 2;
     let mut height = 48 * 4;
+    let mut contrast = 0.0;
     loop {
         stdout.queue(terminal::Clear(terminal::ClearType::All))?;
         stdout.queue(cursor::MoveTo(0, 0))?;
 
         let mut new_image = imageops::resize(&image, width, height, FILTER);
+        imageops::colorops::contrast_in_place(&mut new_image, contrast);
         imageops::dither(&mut new_image, &BiLevel);
         let rows = height / 4;
         let cols = width / 2;
@@ -53,7 +55,7 @@ fn main() -> anyhow::Result<()> {
             stdout.write_all(&row_bytes)?;
         }
 
-        writeln!(stdout, "hi :3      ({width}x{height})\r")?;
+        writeln!(stdout, "hi :3      ({width}x{height}, contrast = {contrast})\r")?;
 
         loop {
             let Event::Key(e) = event::read()? else { continue };
@@ -64,6 +66,8 @@ fn main() -> anyhow::Result<()> {
                 event::KeyCode::Down => {
                     height += 4;
                 }
+                event::KeyCode::Char('+') => contrast += 1.0,
+                event::KeyCode::Char('-') => contrast -= 1.0,
                 event::KeyCode::Left => width = (width - 4).max(4),
                 event::KeyCode::Right => width += 4,
                 event::KeyCode::Esc => return Ok(()),
